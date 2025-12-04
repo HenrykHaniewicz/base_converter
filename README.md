@@ -15,38 +15,53 @@ For **negative bases**, the algorithm ensures **non-negative** output ("principa
 - Detects and displays **repeating decimals** with parentheses notation
 - Can display conversions for **all bases** or **all positive bases**
 - Clean command-line interface using `argparse`
+- **GUI interface** with modern styling (requires PyQt6)
 
 ---
 
 ## Requirements
 
-- Python **3.9+**
-- An OS
+- Python **3.11+**
+- PyQt6 (optional, but required for GUI mode): `pip install PyQt6`
 
 ---
 
 ## Usage
 
-```bash
+### Command Line
+
+```
 python base_converter.py number [-f FROM_BASE] [-t TO_BASE] [-p PRECISION]
 python base_converter.py number [-f FROM_BASE] --all [-p PRECISION]
 python base_converter.py number [-f FROM_BASE] --allpos [-p PRECISION]
 ```
 
+### GUI Mode
+
+```
+python base_converter.py --gui
+```
+
+Launches an interactive graphical interface with:
+- Input fields for number, bases, and precision
+- Options to show all bases or positive bases only
+- Dynamic output window with auto-sizing fonts
+
 ### Arguments
 
-- `number` (required): a number in the source base (e.g., `42`, `-13`, `3.14159`, `FF.A8`)
+- `number` (required in CLI mode): a number in the source base (e.g., `42`, `-13`, `3.14159`, `FF.A8`)
 - `-f, --from-base BASE` (optional): base of the input number (default: `10`)
 - `-t, --to-base BASE` (optional): base to convert to (default: `2`)
 - `-p, --precision DIGITS` (optional): precision for fractional parts (default: `50`)
 - `--all`: show conversions for every supported base **−36…−2, 2…36**
 - `--allpos`: show conversions for positive bases **2…36**
+- `--gui`: launch graphical user interface
 
 ### Examples
 
 Convert to a specific base:
 
-```bash
+```
 # 42 (base 10) to binary
 python base_converter.py 42
 # -> Number in base 10:      42
@@ -54,7 +69,7 @@ python base_converter.py 42
 # -> Number in base 2:       101010
 ```
 
-```bash
+```
 # 42 (base 10) to hexadecimal
 python base_converter.py 42 -t 16
 # -> Number in base 10:      42
@@ -62,7 +77,7 @@ python base_converter.py 42 -t 16
 # -> Number in base 16:      2A
 ```
 
-```bash
+```
 # FF (base 16) to decimal
 python base_converter.py FF -f 16 -t 10
 # -> Number in base 16:      FF
@@ -70,7 +85,7 @@ python base_converter.py FF -f 16 -t 10
 # -> Number in base 10:      255
 ```
 
-```bash
+```
 # 42 (base 10) to base -2 (negabinary)
 python base_converter.py 42 -t -2
 # -> Number in base 10:      42
@@ -78,7 +93,7 @@ python base_converter.py 42 -t -2
 # -> Number in base -2:      1111110
 ```
 
-```bash
+```
 # -255 (base 10) to hexadecimal
 python base_converter.py -255 -t 16
 # -> Number in base 10:      -255
@@ -88,7 +103,7 @@ python base_converter.py -255 -t 16
 
 Convert decimal/fractional numbers:
 
-```bash
+```
 # Pi (base 10) to binary
 python base_converter.py 3.14159 -t 2
 # -> Number in base 10:      3.14159
@@ -96,7 +111,7 @@ python base_converter.py 3.14159 -t 2
 # -> Number in base 2:       11.00100100001111110...
 ```
 
-```bash
+```
 # Hex fraction to decimal
 python base_converter.py FF.A8 -f 16 -t 10
 # -> Number in base 16:      FF.A8
@@ -104,18 +119,18 @@ python base_converter.py FF.A8 -f 16 -t 10
 # -> Number in base 10:      255.65625
 ```
 
-```bash
+```
 # High precision conversion (100 digits)
 python base_converter.py 0.1 -t 3 -p 100
 ```
 
 List all base outputs:
 
-```bash
+```
 python base_converter.py 13 --all
 ```
 
-```bash
+```
 # From a non-base-10 number
 python base_converter.py 1A.F -f 16 --all
 # Shows both the original (base 16) and base 10 representations
@@ -124,8 +139,15 @@ python base_converter.py 1A.F -f 16 --all
 
 Only positive base outputs:
 
-```bash
+```
 python base_converter.py -13 --allpos
+```
+
+Launch GUI:
+
+```
+python base_converter.py --gui
+# Opens interactive window with all conversion options
 ```
 
 ---
@@ -147,7 +169,7 @@ For **negative base inputs**, numbers must be the principal (positive) value—n
 
 You can import the converter and use it in your own programs:
 
-```python
+```
 from base_converter import convert_to_base, convert_from_base, convert_all_bases
 from decimal import Decimal
 
@@ -176,3 +198,4 @@ convert_all_bases("FF", 16, Decimal(255), positive_only=True, precision=50)
 - Precision can be set arbitrarily high (default 50 digits for fractional parts)
 - Internal calculations use extra precision to avoid rounding errors
 - The algorithm for negative bases ensures principal value representation (all remainders are non-negative)
+- GUI features dynamic font sizing and responsive window width (up to 1000px) for optimal readability

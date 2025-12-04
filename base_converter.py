@@ -6,6 +6,18 @@ import sys
 import argparse
 from decimal import Decimal, getcontext, ROUND_DOWN
 
+# Check if PyQt6 is available for GUI support
+try:
+    from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                                 QHBoxLayout, QLabel, QLineEdit, QPushButton, 
+                                 QSpinBox, QCheckBox, QTextEdit, QMessageBox,
+                                 QDialog, QDialogButtonBox, QScrollArea, QFrame)
+    from PyQt6.QtCore import Qt, QTimer
+    from PyQt6.QtGui import QFont, QFontMetrics, QPalette, QColor, QLinearGradient
+    GUI_AVAILABLE = True
+except ImportError:
+    GUI_AVAILABLE = False
+
 def partition_quotient(dividend, divisor, minusone=False):
     """
     Perform division ensuring non-negative remainders.
@@ -249,14 +261,14 @@ def convert_to_base(n, base, precision=50):
 
 def convert_all_bases(original_number_str, from_base, base10_number, positive_only=False, precision=50):
     """Convert to all available bases and display results"""
-    print()
+    results = []
     
     # Show original number if from_base is not 10
     if from_base != 10:
-        print(f'Number in base {from_base}: \t{original_number_str}')
+        results.append(f'Number in base {from_base}: \t{original_number_str}')
     
-    print(f'Number in base 10: \t{base10_number}\n')
-    print('-' * 60)
+    results.append(f'Number in base 10: \t{base10_number}\n')
+    results.append('-' * 60)
     
     if positive_only:
         bases_to_try = range(2, 37)
@@ -270,9 +282,10 @@ def convert_all_bases(original_number_str, from_base, base10_number, positive_on
             display_result = result[:47] + "..."
         else:
             display_result = result
-        print(f'Number in base {base:3}: \t{display_result}')
+        results.append(f'Number in base {base:3}: \t{display_result}')
     
-    print('-' * 60)
+    results.append('-' * 60)
+    return '\n'.join(results)
 
 def validate_base(base):
     """Validate that a base is within supported range. Returns error message or None."""
@@ -293,6 +306,517 @@ class CustomFormatter(argparse.RawDescriptionHelpFormatter):
         if prefix is None:
             prefix = ''
         return super(CustomFormatter, self).add_usage(usage, actions, groups, prefix)
+
+# GUI Classes
+if GUI_AVAILABLE:
+    class ResultWindow(QDialog):
+        """Window to display conversion results"""
+        def __init__(self, output_text, parent=None):
+            super().__init__(parent)
+            self.setWindowTitle("Conversion Results")
+            self.output_text = output_text
+            self.initUI()
+            
+        def initUI(self):
+            # Apply stylesheet for results window
+            self.setStyleSheet("""
+                QDialog {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, 
+                        stop:0 #2C3E50, stop:1 #34495E);
+                }
+                QTextEdit {
+                    background-color: #1E1E2E;
+                    color: #A6E3A1;
+                    border: 2px solid #4A5568;
+                    border-radius: 8px;
+                    padding: 10px;
+                    selection-background-color: #4A5568;
+                }
+                QPushButton {
+                    background-color: #48BB78;
+                    color: white;
+                    border: none;
+                    padding: 8px 20px;
+                    border-radius: 5px;
+                    font-weight: bold;
+                    font-size: 12px;
+                }
+                QPushButton:hover {
+                    background-color: #38A169;
+                }
+                QPushButton:pressed {
+                    background-color: #2F855A;
+                }
+            """)
+            
+            # Calculate optimal window size
+            lines = self.output_text.split('\n')
+            max_line_length = max(len(line) for line in lines if line)
+            
+            # Start with default size
+            width = 800
+            min_font_size = 12
+            max_font_size = 20
+            
+            # Test if content fits with minimum font
+            font = QFont("Courier", min_font_size)
+            metrics = QFontMetrics(font)
+            max_width_needed = max(metrics.horizontalAdvance(line) for line in lines if line) + 50  # padding
+            
+            # Adjust window width if needed (up to maximum of 1000)
+            if max_width_needed > width:
+                width = min(max_width_needed, 1000)
+            
+            self.setGeometry(200, 200, width, 500)
+            
+            layout = QVBoxLayout()
+            layout.setSpacing(10)
+            layout.setContentsMargins(15, 15, 15, 15)
+            
+            # Title label
+            title = QLabel("Conversion Results")
+            title.setStyleSheet("""
+                QLabel {
+                    color: #A6E3A1;
+                    font-size: 16px;
+                    font-weight: bold;
+                    padding: 5px;
+                }
+            """)
+            title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(title)
+            
+            # Create scrollable text area
+            self.text_output = QTextEdit()
+            self.text_output.setReadOnly(True)
+            self.text_output.setPlainText(self.output_text)
+            
+            # Calculate optimal font size based on content and window width
+            self.adjustFontSize(width)
+            
+            layout.addWidget(self.text_output)
+            
+            # Add OK button
+            ok_button = QPushButton("OK")
+            ok_button.clicked.connect(self.accept)
+            ok_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            
+            button_layout = QHBoxLayout()
+            button_layout.addStretch()
+            button_layout.addWidget(ok_button)
+            button_layout.addStretch()
+            
+            layout.addLayout(button_layout)
+            self.setLayout(layout)
+        
+        def adjustFontSize(self, window_width):
+            """Dynamically adjust font size to fit content width"""
+            lines = self.output_text.split('\n')
+            max_line_length = max(len(line) for line in lines if line)
+            
+            # Set font size range with minimum of 12
+            font_size = 14
+            max_font_size = 20
+            min_font_size = 12
+            
+            # Available width accounting for margins, padding, and scrollbar
+            available_width = window_width - 80
+            
+            # Binary search for optimal font size
+            while max_font_size - min_font_size > 1:
+                font = QFont("Courier", font_size)
+                metrics = QFontMetrics(font)
+                
+                # Calculate the width of the longest line
+                max_width = max(metrics.horizontalAdvance(line) for line in lines if line)
+                
+                if max_width < available_width * 0.95:  # Try to fill 95% of available space
+                    min_font_size = font_size
+                else:
+                    max_font_size = font_size
+                
+                font_size = (min_font_size + max_font_size) // 2
+            
+            # Apply the optimal font size (never less than 12)
+            final_font = QFont("Courier", max(min_font_size, 12))
+            self.text_output.setFont(final_font)
+    
+    class CustomSpinBox(QSpinBox):
+        """Custom SpinBox that allows typing invalid intermediate values"""
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.setRange(-36, 36)
+            self._typing = False
+            self._timer = QTimer()
+            self._timer.timeout.connect(self._validate_typed_value)
+            self._timer.setSingleShot(True)
+            
+        def keyPressEvent(self, event):
+            """Handle key press events to allow typing"""
+            # Mark that we're typing
+            self._typing = True
+            super().keyPressEvent(event)
+            # Start/restart timer to validate after typing stops
+            self._timer.stop()
+            self._timer.start(1000)  # Validate after 1 second of no typing
+            
+        def _validate_typed_value(self):
+            """Validate the typed value after typing stops"""
+            self._typing = False
+            value = self.value()
+            if value in [-1, 0, 1]:
+                # Jump to nearest valid value
+                if value == 0:
+                    self.setValue(2)
+                elif value == 1:
+                    self.setValue(2)
+                elif value == -1:
+                    self.setValue(-2)
+        
+        def stepBy(self, steps):
+            """Override stepBy to skip invalid values when using arrows"""
+            current = self.value()
+            new_value = current + steps
+            
+            # Skip invalid values
+            if new_value in [-1, 0, 1]:
+                if steps > 0:
+                    if new_value == -1:
+                        new_value = 2
+                    else:
+                        new_value = 2
+                else:
+                    if new_value == 1:
+                        new_value = -2
+                    else:
+                        new_value = -2
+            
+            self.setValue(new_value)
+    
+    class BaseConverterGUI(QMainWindow):
+        """Main GUI window for the base converter"""
+        def __init__(self):
+            super().__init__()
+            self.initUI()
+        
+        def initUI(self):
+            self.setWindowTitle("Base Converter")
+            self.setGeometry(100, 100, 600, 450)
+            
+            # Apply modern stylesheet
+            self.setStyleSheet("""
+                QMainWindow {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, 
+                        stop:0 #667EEA, stop:1 #764BA2);
+                }
+                QLabel {
+                    color: white;
+                    font-size: 13px;
+                    font-weight: 500;
+                }
+                QLineEdit {
+                    background-color: rgba(255, 255, 255, 0.9);
+                    border: 2px solid #4A5568;
+                    border-radius: 5px;
+                    padding: 8px;
+                    font-size: 12px;
+                    color: #2D3748;
+                }
+                QLineEdit:focus {
+                    border-color: #667EEA;
+                    background-color: white;
+                }
+                QSpinBox {
+                    background-color: rgba(255, 255, 255, 0.9);
+                    border: 2px solid #4A5568;
+                    border-radius: 5px;
+                    padding: 5px;
+                    font-size: 12px;
+                    color: #2D3748;
+                }
+                QSpinBox:focus {
+                    border-color: #667EEA;
+                    background-color: white;
+                }
+                QCheckBox {
+                    color: white;
+                    font-size: 12px;
+                    spacing: 5px;
+                }
+                QCheckBox::indicator {
+                    width: 18px;
+                    height: 18px;
+                    background-color: rgba(255, 255, 255, 0.9);
+                    border: 2px solid #4A5568;
+                    border-radius: 3px;
+                }
+                QCheckBox::indicator:checked {
+                    background-color: #48BB78;
+                    border-color: #48BB78;
+                }
+                QPushButton {
+                    background-color: #48BB78;
+                    color: white;
+                    border: none;
+                    padding: 10px 30px;
+                    border-radius: 5px;
+                    font-weight: bold;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #38A169;
+                }
+                QPushButton:pressed {
+                    background-color: #2F855A;
+                }
+            """)
+            
+            # Create central widget and layout
+            central_widget = QWidget()
+            self.setCentralWidget(central_widget)
+            main_layout = QVBoxLayout(central_widget)
+            main_layout.setSpacing(15)
+            main_layout.setContentsMargins(30, 30, 30, 30)
+            
+            # Title with larger font
+            title = QLabel("Base m → Base n Converter")
+            title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            title.setStyleSheet("""
+                QLabel {
+                    color: white;
+                    font-size: 24px;
+                    font-weight: bold;
+                    padding: 10px;
+                    background-color: rgba(0, 0, 0, 0.2);
+                    border-radius: 10px;
+                }
+            """)
+            main_layout.addWidget(title)
+            
+            # Create a frame for the input fields
+            input_frame = QFrame()
+            input_frame.setStyleSheet("""
+                QFrame {
+                    background-color: rgba(255, 255, 255, 0.1);
+                    border-radius: 10px;
+                    padding: 10px;
+                }
+            """)
+            input_layout = QVBoxLayout(input_frame)
+            input_layout.setSpacing(12)
+            
+            # Input number
+            number_layout = QHBoxLayout()
+            number_label = QLabel("Number:")
+            number_label.setMinimumWidth(100)
+            self.number_input = QLineEdit()
+            self.number_input.setPlaceholderText("Enter number (e.g., 42, FF, 3.14159)")
+            number_layout.addWidget(number_label)
+            number_layout.addWidget(self.number_input)
+            input_layout.addLayout(number_layout)
+            
+            # From base
+            from_layout = QHBoxLayout()
+            from_label = QLabel("From base:")
+            from_label.setMinimumWidth(100)
+            self.from_base = CustomSpinBox()
+            self.from_base.setValue(10)
+            self.from_base.setMaximumWidth(100)
+            from_layout.addWidget(from_label)
+            from_layout.addWidget(self.from_base)
+            from_layout.addStretch()
+            input_layout.addLayout(from_layout)
+            
+            # To base
+            to_layout = QHBoxLayout()
+            to_label = QLabel("To base:")
+            to_label.setMinimumWidth(100)
+            self.to_base = CustomSpinBox()
+            self.to_base.setValue(2)
+            self.to_base.setMaximumWidth(100)
+            self.to_base.valueChanged.connect(self.on_to_base_changed)
+            to_layout.addWidget(to_label)
+            to_layout.addWidget(self.to_base)
+            to_layout.addStretch()
+            input_layout.addLayout(to_layout)
+            
+            # Precision
+            prec_layout = QHBoxLayout()
+            prec_label = QLabel("Precision:")
+            prec_label.setMinimumWidth(100)
+            self.precision = QSpinBox()
+            self.precision.setRange(1, 1000)
+            self.precision.setValue(50)
+            self.precision.setSuffix(" digits")
+            self.precision.setMaximumWidth(150)
+            prec_layout.addWidget(prec_label)
+            prec_layout.addWidget(self.precision)
+            prec_layout.addStretch()
+            input_layout.addLayout(prec_layout)
+            
+            main_layout.addWidget(input_frame)
+            
+            # Options frame
+            options_frame = QFrame()
+            options_frame.setStyleSheet("""
+                QFrame {
+                    background-color: rgba(255, 255, 255, 0.1);
+                    border-radius: 10px;
+                    padding: 10px;
+                }
+            """)
+            options_layout = QVBoxLayout(options_frame)
+            
+            options_label = QLabel("Options:")
+            options_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+            options_layout.addWidget(options_label)
+            
+            self.all_bases = QCheckBox("Show all bases (-36 to 36)")
+            self.all_bases.toggled.connect(self.on_all_bases_toggled)
+            self.all_bases.setCursor(Qt.CursorShape.PointingHandCursor)
+            options_layout.addWidget(self.all_bases)
+            
+            self.positive_only = QCheckBox("Show positive bases only (2 to 36)")
+            self.positive_only.toggled.connect(self.on_positive_only_toggled)
+            self.positive_only.setCursor(Qt.CursorShape.PointingHandCursor)
+            options_layout.addWidget(self.positive_only)
+            
+            main_layout.addWidget(options_frame)
+            
+            # Convert button
+            main_layout.addStretch()
+            self.convert_button = QPushButton("Convert")
+            self.convert_button.clicked.connect(self.perform_conversion)
+            self.convert_button.setDefault(True)
+            self.convert_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            
+            button_layout = QHBoxLayout()
+            button_layout.addStretch()
+            button_layout.addWidget(self.convert_button)
+            button_layout.addStretch()
+            main_layout.addLayout(button_layout)
+            
+            # Status label
+            self.status_label = QLabel("")
+            self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.status_label.setStyleSheet("color: #FED7D7; font-weight: bold;")
+            main_layout.addWidget(self.status_label)
+        
+        def on_to_base_changed(self, value):
+            """When to_base is changed, uncheck the checkboxes"""
+            if self.to_base.isEnabled():
+                # User is interacting with the to_base spinbox, uncheck boxes
+                self.all_bases.setChecked(False)
+                self.positive_only.setChecked(False)
+        
+        def on_all_bases_toggled(self, checked):
+            """Handle all bases checkbox toggle"""
+            if checked:
+                self.positive_only.setChecked(False)
+                # Grey out but don't disable
+                self.to_base.setStyleSheet("""
+                    QSpinBox {
+                        background-color: rgba(200, 200, 200, 0.5);
+                        color: #888888;
+                    }
+                """)
+            else:
+                # Restore normal appearance
+                self.to_base.setStyleSheet("""
+                    QSpinBox {
+                        background-color: rgba(255, 255, 255, 0.9);
+                        border: 2px solid #4A5568;
+                        border-radius: 5px;
+                        padding: 5px;
+                        font-size: 12px;
+                        color: #2D3748;
+                    }
+                    QSpinBox:focus {
+                        border-color: #667EEA;
+                        background-color: white;
+                    }
+                """)
+        
+        def on_positive_only_toggled(self, checked):
+            """Handle positive only checkbox toggle"""
+            if checked:
+                self.all_bases.setChecked(False)
+                # Grey out but don't disable
+                self.to_base.setStyleSheet("""
+                    QSpinBox {
+                        background-color: rgba(200, 200, 200, 0.5);
+                        color: #888888;
+                    }
+                """)
+            else:
+                # Restore normal appearance
+                self.to_base.setStyleSheet("""
+                    QSpinBox {
+                        background-color: rgba(255, 255, 255, 0.9);
+                        border: 2px solid #4A5568;
+                        border-radius: 5px;
+                        padding: 5px;
+                        font-size: 12px;
+                        color: #2D3748;
+                    }
+                    QSpinBox:focus {
+                        border-color: #667EEA;
+                        background-color: white;
+                    }
+                """)
+        
+        def perform_conversion(self):
+            """Perform the conversion and display results"""
+            try:
+                # Clear status
+                self.status_label.setText("")
+                
+                # Get input values
+                number_str = self.number_input.text().strip()
+                if not number_str:
+                    raise ValueError("Please enter a number")
+                
+                from_base = self.from_base.value()
+                to_base = self.to_base.value()
+                precision = self.precision.value()
+                
+                # Validate bases
+                error = validate_base(from_base)
+                if error:
+                    raise ValueError(f"Invalid from-base: {error}")
+                
+                if not self.all_bases.isChecked() and not self.positive_only.isChecked():
+                    error = validate_base(to_base)
+                    if error:
+                        raise ValueError(f"Invalid to-base: {error}")
+                
+                # Set global precision
+                getcontext().prec = precision + 100
+                
+                # Convert to base 10
+                base10_number = convert_from_base(number_str, from_base, precision)
+                
+                # Perform conversion
+                if self.all_bases.isChecked():
+                    output = convert_all_bases(number_str, from_base, base10_number, 
+                                              positive_only=False, precision=precision)
+                elif self.positive_only.isChecked():
+                    output = convert_all_bases(number_str, from_base, base10_number, 
+                                              positive_only=True, precision=precision)
+                else:
+                    result = convert_to_base(base10_number, to_base, precision)
+                    output = f'Number in base {from_base}: \t{number_str}\n'
+                    output += f'Number in base 10: \t{base10_number}\n'
+                    output += f'Number in base {to_base}: \t{result}'
+                
+                # Display results in new window
+                result_window = ResultWindow(output, self)
+                result_window.exec()
+                
+            except ValueError as e:
+                QMessageBox.critical(self, "Error", str(e))
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"An unexpected error occurred: {str(e)}")
 
 def parse_args():
     """Parse command line arguments using argparse."""
@@ -316,6 +840,7 @@ Examples:
   %(prog)s 255 --all                  Show 255 in all bases (-36 to 36)
   %(prog)s 255 --allpos               Show 255 in all positive bases (2 to 36)
   %(prog)s 1A.F -f 16 --all           Convert hex 1A.F and show in all bases
+  %(prog)s --gui                      Launch GUI interface
 
 Notes:
   - For negative bases, numbers must be the principal (positive) value
@@ -324,9 +849,17 @@ Notes:
         """
     )
     
+    # Add GUI flag
+    parser.add_argument(
+        '--gui',
+        action='store_true',
+        help='Launch GUI interface for conversion'
+    )
+    
     parser.add_argument(
         'number',
         type=str,
+        nargs='?',  # Make optional when using --gui
         help='The number to convert (can include decimals, e.g., 3.14159 or FF.A8)'
     )
     
@@ -369,6 +902,16 @@ Notes:
     
     args = parser.parse_args()
     
+    # Check if GUI is requested
+    if args.gui:
+        if not GUI_AVAILABLE:
+            parser.error("GUI requires PyQt6. Please install it with: pip install PyQt6")
+        return args
+    
+    # If not using GUI, number is required
+    if not args.number:
+        parser.error("the following arguments are required: number")
+    
     # Validate precision
     if args.precision < 1:
         parser.error("Precision must be at least 1")
@@ -390,6 +933,14 @@ Notes:
 if __name__ == "__main__":
     args = parse_args()
     
+    # Launch GUI if requested
+    if args.gui:
+        app = QApplication(sys.argv)
+        window = BaseConverterGUI()
+        window.show()
+        sys.exit(app.exec())
+    
+    # Otherwise, run command-line version
     # Set global precision
     getcontext().prec = args.precision + 100
     
@@ -401,9 +952,13 @@ if __name__ == "__main__":
         sys.exit(1)
     
     if args.all:
-        convert_all_bases(args.number, args.from_base, base10_number, positive_only=False, precision=args.precision)
+        output = convert_all_bases(args.number, args.from_base, base10_number, 
+                                   positive_only=False, precision=args.precision)
+        print(output)
     elif args.allpos:
-        convert_all_bases(args.number, args.from_base, base10_number, positive_only=True, precision=args.precision)
+        output = convert_all_bases(args.number, args.from_base, base10_number, 
+                                   positive_only=True, precision=args.precision)
+        print(output)
     else:
         result = convert_to_base(base10_number, args.to_base, args.precision)
         print(f'\nNumber in base {args.from_base}: \t{args.number}')
